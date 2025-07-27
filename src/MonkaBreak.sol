@@ -11,13 +11,13 @@ contract MonkaBreak {
     address public owner;
     
     /// @notice Minimum entry fee required to create a game (initially 2 MON)
-    uint256 public minEntryFee = 2 ether;
+    uint256 public minEntryFee = 1 ether;
     
     /// @notice Minimum number of thieves required to start a game
-    uint256 public minThieves = 3;
+    uint256 public minThieves = 1;
     
     /// @notice Minimum number of police required to start a game
-    uint256 public minPolice = 3;
+    uint256 public minPolice = 1;
     
     /// @notice Maximum total players allowed in a game
     uint256 public maxPlayers = 10;
