@@ -10,554 +10,560 @@ contract MonkaBreakTest is Test {
     address public creator = address(0x1);
     address public player1 = address(0x2);
     address public player2 = address(0x3);
-    address public nonOwner = address(0x4);
+    address public player3 = address(0x4);
+    address public nonCreator = address(0x5);
     
-    // Test constants - updated to match new mutable variables
     uint256 public constant MIN_ENTRY_FEE = 1 ether;
-    uint256 public constant GAME_ENTRY_FEE = 2 ether;
+    uint256 public constant TEST_GAME_ID = 1;
+    uint256 public constant ANOTHER_GAME_ID = 2;
 
     function setUp() public {
-        // Deploy contract and set creator as owner
-        vm.prank(creator);
         monkaBreak = new MonkaBreak();
         
         // Fund test accounts
         vm.deal(creator, 100 ether);
         vm.deal(player1, 100 ether);
         vm.deal(player2, 100 ether);
-        vm.deal(nonOwner, 100 ether);
+        vm.deal(player3, 100 ether);
+        vm.deal(nonCreator, 100 ether);
     }
 
-    // ===== OWNER FUNCTIONALITY TESTS =====
-
-    function testConstructorSetsOwner() public {
-        assertEq(monkaBreak.owner(), creator);
-    }
-
-    function testOnlyOwnerModifier() public {
-        vm.prank(nonOwner);
-        vm.expectRevert(MonkaBreak.OnlyOwnerCanCall.selector);
-        monkaBreak.setMinEntryFee(5 ether);
-    }
-
-    function testTransferOwnership() public {
-        address newOwner = address(0x5);
-        
-        vm.prank(creator);
-        vm.expectEmit(true, true, false, false);
-        emit MonkaBreak.OwnershipTransferred(creator, newOwner);
-        monkaBreak.transferOwnership(newOwner);
-        
-        assertEq(monkaBreak.owner(), newOwner);
-        
-        // Test new owner can call owner functions
-        vm.prank(newOwner);
-        monkaBreak.setMinEntryFee(5 ether);
-        assertEq(monkaBreak.minEntryFee(), 5 ether);
-    }
-
-    function testTransferOwnershipToZeroAddress() public {
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.NewOwnerIsZeroAddress.selector);
-        monkaBreak.transferOwnership(address(0));
-    }
-
-    function testNonOwnerCannotTransferOwnership() public {
-        vm.prank(nonOwner);
-        vm.expectRevert(MonkaBreak.OnlyOwnerCanCall.selector);
-        monkaBreak.transferOwnership(address(0x5));
-    }
-
-    // ===== INDIVIDUAL SETTER TESTS =====
-
-    function testSetMinEntryFee() public {
-        uint256 newFee = 5 ether;
-        uint256 oldFee = monkaBreak.minEntryFee();
-        
-        vm.prank(creator);
-        vm.expectEmit(false, false, false, true);
-        emit MonkaBreak.MinEntryFeeUpdated(oldFee, newFee);
-        monkaBreak.setMinEntryFee(newFee);
-        
-        assertEq(monkaBreak.minEntryFee(), newFee);
-    }
-
-    function testSetMinEntryFeeZeroReverts() public {
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMinEntryFee.selector);
-        monkaBreak.setMinEntryFee(0);
-    }
-
-    function testSetMinThieves() public {
-        uint256 newMin = 5;
-        uint256 oldMin = monkaBreak.minThieves();
-        
-        vm.prank(creator);
-        vm.expectEmit(false, false, false, true);
-        emit MonkaBreak.MinThievesUpdated(oldMin, newMin);
-        monkaBreak.setMinThieves(newMin);
-        
-        assertEq(monkaBreak.minThieves(), newMin);
-    }
-
-    function testSetMinThievesZeroReverts() public {
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMinThieves.selector);
-        monkaBreak.setMinThieves(0);
-    }
-
-    function testSetMinPolice() public {
-        uint256 newMin = 4;
-        uint256 oldMin = monkaBreak.minPolice();
-        
-        vm.prank(creator);
-        vm.expectEmit(false, false, false, true);
-        emit MonkaBreak.MinPoliceUpdated(oldMin, newMin);
-        monkaBreak.setMinPolice(newMin);
-        
-        assertEq(monkaBreak.minPolice(), newMin);
-    }
-
-    function testSetMinPoliceZeroReverts() public {
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMinPolice.selector);
-        monkaBreak.setMinPolice(0);
-    }
-
-    function testSetMaxPlayers() public {
-        uint256 newMax = 15;
-        uint256 oldMax = monkaBreak.maxPlayers();
-        
-        vm.prank(creator);
-        vm.expectEmit(false, false, false, true);
-        emit MonkaBreak.MaxPlayersUpdated(oldMax, newMax);
-        monkaBreak.setMaxPlayers(newMax);
-        
-        assertEq(monkaBreak.maxPlayers(), newMax);
-    }
-
-    function testSetMaxPlayersInvalidReverts() public {
-        // Try to set max players less than minThieves + minPolice
-        uint256 minThieves = monkaBreak.minThieves();
-        uint256 minPolice = monkaBreak.minPolice();
-        uint256 invalidMax = minThieves + minPolice - 1;
-        
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMaxPlayers.selector);
-        monkaBreak.setMaxPlayers(invalidMax);
-    }
-
-    function testSetTotalStages() public {
-        uint256 newStages = 3;
-        uint256 oldStages = monkaBreak.totalStages();
-        
-        vm.prank(creator);
-        vm.expectEmit(false, false, false, true);
-        emit MonkaBreak.TotalStagesUpdated(oldStages, newStages);
-        monkaBreak.setTotalStages(newStages);
-        
-        assertEq(monkaBreak.totalStages(), newStages);
-    }
-
-    function testSetTotalStagesInvalidReverts() public {
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidTotalStages.selector);
-        monkaBreak.setTotalStages(0);
-        
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidTotalStages.selector);
-        monkaBreak.setTotalStages(5);
-    }
-
-    function testSetNumPaths() public {
-        uint256 newPaths = 5;
-        uint256 oldPaths = monkaBreak.numPaths();
-        
-        vm.prank(creator);
-        vm.expectEmit(false, false, false, true);
-        emit MonkaBreak.NumPathsUpdated(oldPaths, newPaths);
-        monkaBreak.setNumPaths(newPaths);
-        
-        assertEq(monkaBreak.numPaths(), newPaths);
-    }
-
-    function testSetNumPathsZeroReverts() public {
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidNumPaths.selector);
-        monkaBreak.setNumPaths(0);
-    }
-
-    // ===== BULK UPDATE TESTS =====
-
-    function testUpdateGameParameters() public {
-        uint256 newMinEntryFee = 5 ether;
-        uint256 newMinThieves = 4;
-        uint256 newMinPolice = 4;
-        uint256 newMaxPlayers = 12;
-        uint256 newTotalStages = 3;
-        uint256 newNumPaths = 4;
-        
-        vm.prank(creator);
-        vm.expectEmit(false, false, false, true);
-        emit MonkaBreak.GameParametersUpdated(
-            newMinEntryFee, 
-            newMinThieves, 
-            newMinPolice, 
-            newMaxPlayers, 
-            newTotalStages, 
-            newNumPaths
-        );
-        
-        monkaBreak.updateGameParameters(
-            newMinEntryFee,
-            newMinThieves,
-            newMinPolice,
-            newMaxPlayers,
-            newTotalStages,
-            newNumPaths
-        );
-        
-        assertEq(monkaBreak.minEntryFee(), newMinEntryFee);
-        assertEq(monkaBreak.minThieves(), newMinThieves);
-        assertEq(monkaBreak.minPolice(), newMinPolice);
-        assertEq(monkaBreak.maxPlayers(), newMaxPlayers);
-        assertEq(monkaBreak.totalStages(), newTotalStages);
-        assertEq(monkaBreak.numPaths(), newNumPaths);
-    }
-
-    function testUpdateGameParametersInvalidValues() public {
-        // Test invalid minEntryFee
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMinEntryFee.selector);
-        monkaBreak.updateGameParameters(0, 3, 3, 10, 4, 3);
-        
-        // Test invalid minThieves
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMinThieves.selector);
-        monkaBreak.updateGameParameters(2 ether, 0, 3, 10, 4, 3);
-        
-        // Test invalid minPolice
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMinPolice.selector);
-        monkaBreak.updateGameParameters(2 ether, 3, 0, 10, 4, 3);
-        
-        // Test invalid maxPlayers
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidMaxPlayers.selector);
-        monkaBreak.updateGameParameters(2 ether, 3, 3, 5, 4, 3);
-        
-        // Test invalid totalStages
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidTotalStages.selector);
-        monkaBreak.updateGameParameters(2 ether, 3, 3, 10, 0, 3);
-        
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidTotalStages.selector);
-        monkaBreak.updateGameParameters(2 ether, 3, 3, 10, 5, 3);
-        
-        // Test invalid numPaths
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InvalidNumPaths.selector);
-        monkaBreak.updateGameParameters(2 ether, 3, 3, 10, 4, 0);
-    }
-
-    // ===== INTEGRATION TESTS WITH NEW PARAMETERS =====
-
-    function testGameCreationWithUpdatedMinFee() public {
-        // Update minimum entry fee
-        vm.prank(creator);
-        monkaBreak.setMinEntryFee(5 ether);
-        
-        // Try to create game with old fee - should fail
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InsufficientEntryFee.selector);
-        monkaBreak.createGame(3 ether);
-        
-        // Create game with new fee - should succeed
-        vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(5 ether);
-        assertEq(gameId, 1);
-    }
-
-    function testMaxPlayersEnforced() public {
-        // Update max players to 6
-        vm.prank(creator);
-        monkaBreak.setMaxPlayers(6);
-        
-        // Create game
-        vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
-        
-        // Add 6 players (should work)
-        for (uint160 i = 1; i <= 6; i++) {
-            address player = address(i);
-            vm.deal(player, 10 ether);
-            vm.prank(player);
-            monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Player", i % 2 == 0);
-        }
-        
-        // Try to add 7th player (should fail)
-        address player7 = address(0x7);
-        vm.deal(player7, 10 ether);
-        vm.prank(player7);
-        vm.expectRevert(MonkaBreak.GameIsFull.selector);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Player7", true);
-    }
-
-    function testUpdatedMinThievesAndPoliceEnforced() public {
-        // Update min thieves and police to 2 each
-        vm.prank(creator);
-        monkaBreak.setMinThieves(2);
-        vm.prank(creator);
-        monkaBreak.setMinPolice(2);
-        
-        // Create game
-        vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
-        
-        // Add 1 thief and 1 police
-        vm.prank(player1);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Thief1", true);
-        vm.prank(player2);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Police1", false);
-        
-        // Try to start (should fail - not enough players)
-        vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InsufficientPlayers.selector);
-        monkaBreak.startGame(gameId);
-        
-        // Add one more thief and police
-        address player3 = address(0x5);
-        address player4 = address(0x6);
-        vm.deal(player3, 10 ether);
-        vm.deal(player4, 10 ether);
-        
-        vm.prank(player3);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Thief2", true);
-        vm.prank(player4);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Police2", false);
-        
-        // Now start should work
-        vm.prank(creator);
-        monkaBreak.startGame(gameId);
-        
-        (,,bool started,,,,,,) = monkaBreak.getGameState(gameId);
-        assertTrue(started);
-    }
-
-    // ===== EXISTING TESTS (Updated to use mutable variables) =====
+    // ===== CREATE GAME TESTS =====
 
     function testCreateGame() public {
         vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
+        vm.expectEmit(true, true, false, false);
+        emit MonkaBreak.GameCreated(TEST_GAME_ID, creator);
+        monkaBreak.createGame(TEST_GAME_ID);
         
-        assertEq(gameId, 1);
-        assertEq(monkaBreak.getCurrentGameId(), 1);
+        (address gameCreator, uint256 vault, uint256 entryFee, uint256 startBlock, bool started, bool finalized) = 
+            monkaBreak.getGame(TEST_GAME_ID);
         
-        (address gameCreator, uint256 entryFee,,,,,,,) = monkaBreak.getGameState(gameId);
         assertEq(gameCreator, creator);
-        assertEq(entryFee, GAME_ENTRY_FEE);
+        assertEq(vault, 0);
+        assertEq(entryFee, 0);
+        assertEq(startBlock, 0);
+        assertFalse(started);
+        assertFalse(finalized);
     }
 
-    function testCreateGameInsufficientFee() public {
+    function testCreateGameWithDifferentCreators() public {
         vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InsufficientEntryFee.selector);
-        monkaBreak.createGame(0.5 ether); // Less than MIN_ENTRY_FEE
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(player1);
+        monkaBreak.createGame(ANOTHER_GAME_ID);
+        
+        (address creator1,,,,,) = monkaBreak.getGame(TEST_GAME_ID);
+        (address creator2,,,,,) = monkaBreak.getGame(ANOTHER_GAME_ID);
+        
+        assertEq(creator1, creator);
+        assertEq(creator2, player1);
     }
 
-    function testJoinGame() public {
+    function testCreateGameAlreadyExists() public {
         vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
+        monkaBreak.createGame(TEST_GAME_ID);
         
-        vm.prank(player1);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Alice", true);
-        
-        MonkaBreak.Player[] memory players = monkaBreak.getPlayers(gameId);
-        assertEq(players.length, 1);
-        assertEq(players[0].addr, player1);
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.GameAlreadyExists.selector);
+        monkaBreak.createGame(TEST_GAME_ID);
     }
 
-    function testJoinGameInsufficientPayment() public {
+    function testCreateGameAlreadyExistsDifferentCreator() public {
         vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
+        monkaBreak.createGame(TEST_GAME_ID);
         
         vm.prank(player1);
-        vm.expectRevert(MonkaBreak.InsufficientEntryFee.selector);
-        monkaBreak.joinGame{value: 1 ether}(gameId, "Alice", true);
+        vm.expectRevert(MonkaBreak.GameAlreadyExists.selector);
+        monkaBreak.createGame(TEST_GAME_ID);
     }
 
-    function testJoinGameAlreadyJoined() public {
-        vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
-        
-        vm.prank(player1);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Alice", true);
-        
-        vm.prank(player1);
-        vm.expectRevert(MonkaBreak.PlayerAlreadyJoined.selector);
-        monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, "Alice2", false);
-    }
+    // ===== START GAME TESTS =====
 
     function testStartGame() public {
         vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
+        monkaBreak.createGame(TEST_GAME_ID);
         
-        // Add minimum required players
-        _addMinimumPlayers(gameId);
+        uint256 entryFee = 3 ether;
         
         vm.prank(creator);
-        monkaBreak.startGame(gameId);
+        vm.expectEmit(true, false, false, true);
+        emit MonkaBreak.GameStarted(TEST_GAME_ID, entryFee, block.number);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
         
-        (,,bool started,,,,,,) = monkaBreak.getGameState(gameId);
+        (address gameCreator, uint256 vault, uint256 gameEntryFee, uint256 startBlock, bool started, bool finalized) = 
+            monkaBreak.getGame(TEST_GAME_ID);
+        
+        assertEq(gameCreator, creator);
+        assertEq(vault, entryFee);
+        assertEq(gameEntryFee, entryFee);
+        assertEq(startBlock, block.number);
         assertTrue(started);
+        assertFalse(finalized);
     }
 
-    function testStartGameInsufficientPlayers() public {
+    function testStartGameMinimumFee() public {
         vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
+        monkaBreak.createGame(TEST_GAME_ID);
         
         vm.prank(creator);
-        vm.expectRevert(MonkaBreak.InsufficientPlayers.selector);
-        monkaBreak.startGame(gameId);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        (, uint256 vault, uint256 entryFee,,,) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, MIN_ENTRY_FEE);
+        assertEq(entryFee, MIN_ENTRY_FEE);
     }
 
-    function testCommitMove() public {
+    function testStartGameInsufficientFee() public {
         vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
-        _addMinimumPlayers(gameId);
+        monkaBreak.createGame(TEST_GAME_ID);
         
         vm.prank(creator);
-        monkaBreak.startGame(gameId);
+        vm.expectRevert(MonkaBreak.InsufficientEntryFee.selector);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE - 1}(TEST_GAME_ID);
+    }
+
+    function testStartGameZeroFee() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
         
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.InsufficientEntryFee.selector);
+        monkaBreak.startGame{value: 0}(TEST_GAME_ID);
+    }
+
+    function testStartGameNonexistentGame() public {
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.GameNotFound.selector);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+    }
+
+    function testStartGameNotCreator() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(nonCreator);
+        vm.expectRevert(MonkaBreak.OnlyCreatorCanCall.selector);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+    }
+
+    function testStartGameAlreadyStarted() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(creator);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.GameAlreadyStarted.selector);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+    }
+
+    // ===== FINALIZE GAME TESTS =====
+
+    function testFinalizeGameSingleWinner() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = 4 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](1);
+        winners[0] = player1;
+        
+        uint256 player1BalanceBefore = player1.balance;
+        
+        vm.prank(creator);
+        vm.expectEmit(true, false, false, true);
+        emit MonkaBreak.GameFinalized(TEST_GAME_ID, winners);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        (, uint256 vault,,,, bool finalized) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, 0);
+        assertTrue(finalized);
+        assertEq(player1.balance, player1BalanceBefore + entryFee);
+    }
+
+    function testFinalizeGameMultipleWinners() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = 6 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](3);
+        winners[0] = player1;
+        winners[1] = player2;
+        winners[2] = player3;
+        
+        uint256 player1BalanceBefore = player1.balance;
+        uint256 player2BalanceBefore = player2.balance;
+        uint256 player3BalanceBefore = player3.balance;
+        
+        uint256 expectedPrize = entryFee / 3;
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        (, uint256 vault,,,, bool finalized) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, 0);
+        assertTrue(finalized);
+        assertEq(player1.balance, player1BalanceBefore + expectedPrize);
+        assertEq(player2.balance, player2BalanceBefore + expectedPrize);
+        assertEq(player3.balance, player3BalanceBefore + expectedPrize);
+    }
+
+    function testFinalizeGameWithRemainder() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = 5 ether; // Not evenly divisible by 3
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](3);
+        winners[0] = player1;
+        winners[1] = player2;
+        winners[2] = player3;
+        
+        uint256 player1BalanceBefore = player1.balance;
+        uint256 expectedPrize = entryFee / 3; // 1.666... ether = 1 ether (truncated)
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        assertEq(player1.balance, player1BalanceBefore + expectedPrize);
+        // Remainder stays in contract (locked forever)
+    }
+
+    function testFinalizeGameNoWinners() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(creator);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](0);
+        
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.NoWinners.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    function testFinalizeGameNonexistentGame() public {
+        address[] memory winners = new address[](1);
+        winners[0] = player1;
+        
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.GameNotFound.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    function testFinalizeGameNotStarted() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](1);
+        winners[0] = player1;
+        
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.GameNotStarted.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    function testFinalizeGameNotCreator() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(creator);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](1);
+        winners[0] = player1;
+        
+        vm.prank(nonCreator);
+        vm.expectRevert(MonkaBreak.OnlyCreatorCanCall.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    function testFinalizeGameAlreadyFinalized() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(creator);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](1);
+        winners[0] = player1;
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.GameAlreadyFinalized.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    function testFinalizeGameTransferFailed() public {
+        // Deploy a contract that rejects ETH transfers
+        RejectEther rejectContract = new RejectEther();
+        
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(creator);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](1);
+        winners[0] = address(rejectContract);
+        
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.TransferFailed.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    // ===== GET GAME TESTS =====
+
+    function testGetGameNonexistent() public {
+        vm.expectRevert(MonkaBreak.GameNotFound.selector);
+        monkaBreak.getGame(TEST_GAME_ID);
+    }
+
+    function testGetGameCreated() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        (address gameCreator, uint256 vault, uint256 entryFee, uint256 startBlock, bool started, bool finalized) = 
+            monkaBreak.getGame(TEST_GAME_ID);
+        
+        assertEq(gameCreator, creator);
+        assertEq(vault, 0);
+        assertEq(entryFee, 0);
+        assertEq(startBlock, 0);
+        assertFalse(started);
+        assertFalse(finalized);
+    }
+
+    function testGetGameStarted() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 testEntryFee = 3 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: testEntryFee}(TEST_GAME_ID);
+        
+        (address gameCreator, uint256 vault, uint256 entryFee, uint256 startBlock, bool started, bool finalized) = 
+            monkaBreak.getGame(TEST_GAME_ID);
+        
+        assertEq(gameCreator, creator);
+        assertEq(vault, testEntryFee);
+        assertEq(entryFee, testEntryFee);
+        assertEq(startBlock, block.number);
+        assertTrue(started);
+        assertFalse(finalized);
+    }
+
+    function testGetGameFinalized() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 testEntryFee = 3 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: testEntryFee}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](1);
+        winners[0] = player1;
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        (address gameCreator, uint256 vault, uint256 entryFee, uint256 startBlock, bool started, bool finalized) = 
+            monkaBreak.getGame(TEST_GAME_ID);
+        
+        assertEq(gameCreator, creator);
+        assertEq(vault, 0); // Vault cleared after finalization
+        assertEq(entryFee, testEntryFee);
+        assertEq(startBlock, block.number);
+        assertTrue(started);
+        assertTrue(finalized);
+    }
+
+    // ===== INTEGRATION TESTS =====
+
+    function testCompleteGameFlow() public {
+        // Create game
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        // Start game
+        uint256 entryFee = 10 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        // Finalize game with multiple winners
+        address[] memory winners = new address[](2);
+        winners[0] = player1;
+        winners[1] = player2;
+        
+        uint256 player1BalanceBefore = player1.balance;
+        uint256 player2BalanceBefore = player2.balance;
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        // Verify final state
+        (,uint256 vault,,,, bool finalized) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, 0);
+        assertTrue(finalized);
+        assertEq(player1.balance, player1BalanceBefore + 5 ether);
+        assertEq(player2.balance, player2BalanceBefore + 5 ether);
+    }
+
+    function testMultipleGamesSimultaneously() public {
+        uint256 gameId1 = 1;
+        uint256 gameId2 = 2;
+        uint256 entryFee1 = 3 ether;
+        uint256 entryFee2 = 5 ether;
+        
+        // Create and start two games
+        vm.prank(creator);
+        monkaBreak.createGame(gameId1);
         vm.prank(player1);
-        monkaBreak.commitMove(gameId, 1); // Path B
+        monkaBreak.createGame(gameId2);
         
-        // Verify move was committed (can't test exact move due to private storage)
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee1}(gameId1);
         vm.prank(player1);
-        vm.expectRevert(MonkaBreak.MoveAlreadyCommitted.selector);
-        monkaBreak.commitMove(gameId, 2);
-    }
-
-    function testVoteBlock() public {
-        vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
-        _addMinimumPlayers(gameId);
+        monkaBreak.startGame{value: entryFee2}(gameId2);
+        
+        // Verify both games are independent
+        (, uint256 vault1,,,,) = monkaBreak.getGame(gameId1);
+        (, uint256 vault2,,,,) = monkaBreak.getGame(gameId2);
+        
+        assertEq(vault1, entryFee1);
+        assertEq(vault2, entryFee2);
+        
+        // Finalize both games
+        address[] memory winners1 = new address[](1);
+        winners1[0] = player2;
+        address[] memory winners2 = new address[](1);
+        winners2[0] = player3;
+        
+        uint256 player2BalanceBefore = player2.balance;
+        uint256 player3BalanceBefore = player3.balance;
         
         vm.prank(creator);
-        monkaBreak.startGame(gameId);
+        monkaBreak.finalizeGame(gameId1, winners1);
+        vm.prank(player1);
+        monkaBreak.finalizeGame(gameId2, winners2);
         
-        // Find a police player and use them for voting
-        MonkaBreak.Player[] memory players = monkaBreak.getPlayers(gameId);
-        address policePlayer;
-        for (uint256 i = 0; i < players.length; i++) {
-            if (!players[i].isThief) {
-                policePlayer = players[i].addr;
-                break;
-            }
-        }
-        
-        vm.prank(policePlayer);
-        monkaBreak.voteBlock(gameId, 0); // Block path A
-        
-        uint8 policeVote = monkaBreak.getPoliceVote(gameId, 0);
-        assertEq(policeVote, 0);
-    }
-
-    function testProcessStage() public {
-        vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
-        _addMinimumPlayersAndStart(gameId);
-        
-        // Commit moves for all thieves
-        MonkaBreak.Player[] memory players = monkaBreak.getPlayers(gameId);
-        for (uint256 i = 0; i < players.length; i++) {
-            address player = players[i].addr;
-            bool isThief = players[i].isThief;
-            if (isThief) {
-                vm.prank(player);
-                monkaBreak.commitMove(gameId, uint8(i % 3));
-            }
-        }
-        
-        // Vote for all police
-        for (uint256 i = 0; i < players.length; i++) {
-            address player = players[i].addr;
-            bool isThief = players[i].isThief;
-            if (!isThief) {
-                vm.prank(player);
-                monkaBreak.voteBlock(gameId, uint8(i % 3));
-            }
-        }
-        
-        vm.prank(creator);
-        monkaBreak.processStage(gameId);
-        
-        // Verify stage was processed
-        (,,,,uint256 currentStage,,,,) = monkaBreak.getGameState(gameId);
-        assertEq(currentStage, 1);
-    }
-
-    function testGetVaultBalance() public {
-        vm.prank(creator);
-        uint256 gameId = monkaBreak.createGame(GAME_ENTRY_FEE);
-        _addMinimumPlayers(gameId);
-        
-        uint256 expectedVault = GAME_ENTRY_FEE * 6; // 6 players joined
-        uint256 actualVault = monkaBreak.getVaultBalance(gameId);
-        assertEq(actualVault, expectedVault);
-    }
-
-    // ===== HELPER FUNCTIONS =====
-
-    function _addMinimumPlayers(uint256 gameId) internal {
-        // Add 3 thieves
-        for (uint160 i = 1; i <= 3; i++) {
-            address player = address(i);
-            vm.deal(player, 10 ether);
-            vm.prank(player);
-            monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, string(abi.encodePacked("Thief", i)), true);
-        }
-        
-        // Add 3 police
-        for (uint160 i = 4; i <= 6; i++) {
-            address player = address(i);
-            vm.deal(player, 10 ether);
-            vm.prank(player);
-            monkaBreak.joinGame{value: GAME_ENTRY_FEE}(gameId, string(abi.encodePacked("Police", i)), false);
-        }
-    }
-
-    function _addMinimumPlayersAndStart(uint256 gameId) internal {
-        _addMinimumPlayers(gameId);
-        vm.prank(creator);
-        monkaBreak.startGame(gameId);
+        assertEq(player2.balance, player2BalanceBefore + entryFee1);
+        assertEq(player3.balance, player3BalanceBefore + entryFee2);
     }
 
     // ===== FUZZ TESTS =====
 
-    function testFuzzSetMinEntryFee(uint256 fee) public {
-        vm.assume(fee > 0 && fee <= type(uint128).max);
+    function testFuzzCreateGame(uint256 gameId) public {
+        vm.assume(gameId != 0); // Avoid edge case where game creator would be zero address check
         
         vm.prank(creator);
-        monkaBreak.setMinEntryFee(fee);
-        assertEq(monkaBreak.minEntryFee(), fee);
+        monkaBreak.createGame(gameId);
+        
+        (address gameCreator,,,,,) = monkaBreak.getGame(gameId);
+        assertEq(gameCreator, creator);
     }
 
-    function testFuzzSetMaxPlayers(uint8 maxPlayers) public {
-        uint256 minThieves = monkaBreak.minThieves();
-        uint256 minPolice = monkaBreak.minPolice();
-        vm.assume(maxPlayers >= minThieves + minPolice && maxPlayers <= 50);
+    function testFuzzStartGame(uint256 entryFee) public {
+        vm.assume(entryFee >= MIN_ENTRY_FEE && entryFee <= 1000 ether);
         
         vm.prank(creator);
-        monkaBreak.setMaxPlayers(maxPlayers);
-        assertEq(monkaBreak.maxPlayers(), maxPlayers);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.deal(creator, entryFee);
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        (, uint256 vault, uint256 gameEntryFee,,,) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, entryFee);
+        assertEq(gameEntryFee, entryFee);
     }
 
-    function testFuzzSetTotalStages(uint256 stages) public {
-        vm.assume(stages > 0 && stages <= 4);
+    function testFuzzFinalizeGame(uint8 numWinners) public {
+        vm.assume(numWinners > 0 && numWinners <= 10);
         
         vm.prank(creator);
-        monkaBreak.setTotalStages(stages);
-        assertEq(monkaBreak.totalStages(), stages);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = uint256(numWinners) * MIN_ENTRY_FEE; // Ensure even distribution and meets minimum
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        address[] memory winners = new address[](numWinners);
+        for (uint256 i = 0; i < numWinners; i++) {
+            winners[i] = address(uint160(i + 100)); // Use addresses 100, 101, 102, etc.
+            vm.deal(winners[i], 0); // Ensure clean slate for balance checks
+        }
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        uint256 expectedPrize = MIN_ENTRY_FEE; // Each winner gets MIN_ENTRY_FEE since entryFee = numWinners * MIN_ENTRY_FEE
+        for (uint256 i = 0; i < numWinners; i++) {
+            assertEq(winners[i].balance, expectedPrize);
+        }
+    }
+
+    // ===== EDGE CASE TESTS =====
+
+    function testGameIdZero() public {
+        vm.prank(creator);
+        monkaBreak.createGame(0);
+        
+        (address gameCreator,,,,,) = monkaBreak.getGame(0);
+        assertEq(gameCreator, creator);
+    }
+
+    function testGameIdMaxUint256() public {
+        uint256 maxGameId = type(uint256).max;
+        
+        vm.prank(creator);
+        monkaBreak.createGame(maxGameId);
+        
+        (address gameCreator,,,,,) = monkaBreak.getGame(maxGameId);
+        assertEq(gameCreator, creator);
+    }
+
+    function testContractBalance() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = 5 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        assertEq(address(monkaBreak).balance, entryFee);
+        
+        address[] memory winners = new address[](1);
+        winners[0] = player1;
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        assertEq(address(monkaBreak).balance, 0);
+    }
+}
+
+// Helper contract for testing transfer failures
+contract RejectEther {
+    // Contract that rejects all ETH transfers
+    fallback() external payable {
+        revert();
+    }
+    
+    receive() external payable {
+        revert();
     }
 } 
