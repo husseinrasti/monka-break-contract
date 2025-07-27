@@ -13,8 +13,8 @@ contract MonkaBreakTest is Test {
     address public nonOwner = address(0x4);
     
     // Test constants - updated to match new mutable variables
-    uint256 public constant MIN_ENTRY_FEE = 2 ether;
-    uint256 public constant GAME_ENTRY_FEE = 3 ether;
+    uint256 public constant MIN_ENTRY_FEE = 1 ether;
+    uint256 public constant GAME_ENTRY_FEE = 2 ether;
 
     function setUp() public {
         // Deploy contract and set creator as owner
@@ -362,7 +362,7 @@ contract MonkaBreakTest is Test {
     function testCreateGameInsufficientFee() public {
         vm.prank(creator);
         vm.expectRevert(MonkaBreak.InsufficientEntryFee.selector);
-        monkaBreak.createGame(1 ether); // Less than MIN_ENTRY_FEE
+        monkaBreak.createGame(0.5 ether); // Less than MIN_ENTRY_FEE
     }
 
     function testJoinGame() public {
