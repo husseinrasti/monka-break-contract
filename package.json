@@ -1,0 +1,46 @@
+{
+  "name": "monka-break-web3-integration",
+  "version": "1.0.0",
+  "description": "Web3 integration files for MonkaBreak smart contract",
+  "main": "web3-integration-example.js",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "ethers": "^6.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "files": [
+    "MonkaBreak.abi.json",
+    "MonkaBreak.contract.json", 
+    "web3-integration-example.js",
+    "README.md"
+  ],
+  "keywords": [
+    "web3",
+    "ethereum",
+    "monad",
+    "smart-contract",
+    "game",
+    "blockchain",
+    "ethers"
+  ],
+  "author": "MonkaBreak Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/monka-break-contract"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 
