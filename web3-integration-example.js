@@ -1,333 +1,333 @@
 /**
- * MonkaBreak Contract Web3 Integration Example
+ * MonkaBreak Smart Contract Integration Example
  * 
- * This example shows how to integrate the MonkaBreak smart contract
- * with web3 applications using ethers.js or web3.js
+ * Contract Address: 0x96932903fCa2C116fFD8DEa7c5b8e87010Cfd8CC
+ * Network: Monad Testnet (Chain ID: 10143)
+ * Verified: Yes (Sourcify)
  */
 
-import { ethers } from 'ethers';
-import contractConfig from './MonkaBreak.contract.json';
-import contractABI from './MonkaBreak.abi.json';
+// Import required libraries
+const Web3 = require('web3');
+// const { ethers } = require('ethers'); // Alternative with ethers.js
 
 // Contract configuration
-const CONTRACT_ADDRESS = contractConfig.contractAddress;
-const CONTRACT_ABI = contractABI;
-const RPC_URL = contractConfig.rpcUrl;
-const CHAIN_ID = contractConfig.chainId;
+const MONAD_TESTNET_RPC = 'https://testnet-rpc.monad.xyz';
+const CONTRACT_ADDRESS = '0x96932903fCa2C116fFD8DEa7c5b8e87010Cfd8CC';
+const CHAIN_ID = 10143;
 
-// Initialize provider and contract
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+// Contract ABI (minimal - only essential functions)
+const CONTRACT_ABI = [
+  {
+    "type": "function",
+    "name": "MIN_ENTRY_FEE",
+    "inputs": [],
+    "outputs": [{"name": "", "type": "uint256", "internalType": "uint256"}],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "createGame",
+    "inputs": [{"name": "gameId", "type": "uint256", "internalType": "uint256"}],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "startGame",
+    "inputs": [{"name": "gameId", "type": "uint256", "internalType": "uint256"}],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "finalizeGame",
+    "inputs": [
+      {"name": "gameId", "type": "uint256", "internalType": "uint256"},
+      {"name": "winners", "type": "address[]", "internalType": "address[]"}
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getGame",
+    "inputs": [{"name": "gameId", "type": "uint256", "internalType": "uint256"}],
+    "outputs": [
+      {"name": "creator", "type": "address", "internalType": "address"},
+      {"name": "vault", "type": "uint256", "internalType": "uint256"},
+      {"name": "entryFee", "type": "uint256", "internalType": "uint256"},
+      {"name": "startBlock", "type": "uint256", "internalType": "uint256"},
+      {"name": "started", "type": "bool", "internalType": "bool"},
+      {"name": "finalized", "type": "bool", "internalType": "bool"}
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "event",
+    "name": "GameCreated",
+    "inputs": [
+      {"name": "gameId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "creator", "type": "address", "indexed": true, "internalType": "address"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GameStarted",
+    "inputs": [
+      {"name": "gameId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "vault", "type": "uint256", "indexed": false, "internalType": "uint256"},
+      {"name": "blockNumber", "type": "uint256", "indexed": false, "internalType": "uint256"}
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "GameFinalized",
+    "inputs": [
+      {"name": "gameId", "type": "uint256", "indexed": true, "internalType": "uint256"},
+      {"name": "winners", "type": "address[]", "indexed": false, "internalType": "address[]"}
+    ],
+    "anonymous": false
+  }
+];
 
-/**
- * Connect wallet and get signer
- */
-async function connectWallet() {
-    if (typeof window.ethereum !== 'undefined') {
-        try {
-            // Request account access
-            await window.ethereum.request({ method: 'eth_requestAccounts' });
-            
-            // Switch to Monad testnet if needed
-            try {
-                await window.ethereum.request({
-                    method: 'wallet_switchEthereumChain',
-                    params: [{ chainId: `0x${CHAIN_ID.toString(16)}` }],
-                });
-            } catch (switchError) {
-                // Chain not added, add it
-                if (switchError.code === 4902) {
-                    await window.ethereum.request({
-                        method: 'wallet_addEthereumChain',
-                        params: [{
-                            chainId: `0x${CHAIN_ID.toString(16)}`,
-                            chainName: 'Monad Testnet',
-                            rpcUrls: [RPC_URL],
-                            nativeCurrency: {
-                                name: 'MON',
-                                symbol: 'MON',
-                                decimals: 18
-                            },
-                            blockExplorerUrls: [contractConfig.explorerUrl]
-                        }]
-                    });
-                }
-            }
+class MonkaBreakContract {
+  constructor(privateKey) {
+    // Initialize Web3 with Monad testnet
+    this.web3 = new Web3(MONAD_TESTNET_RPC);
+    
+    // Setup account from private key
+    this.account = this.web3.eth.accounts.privateKeyToAccount(privateKey);
+    this.web3.eth.accounts.wallet.add(this.account);
+    
+    // Initialize contract instance
+    this.contract = new this.web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+    
+    console.log('MonkaBreak Contract initialized');
+    console.log('Account:', this.account.address);
+    console.log('Contract:', CONTRACT_ADDRESS);
+  }
 
-            const web3Provider = new ethers.BrowserProvider(window.ethereum);
-            const signer = await web3Provider.getSigner();
-            return { provider: web3Provider, signer, contract: contract.connect(signer) };
-        } catch (error) {
-            console.error('Failed to connect wallet:', error);
-            throw error;
-        }
-    } else {
-        throw new Error('MetaMask not installed');
-    }
-}
-
-/**
- * Contract interaction functions
- */
-class MonkaBreakGame {
-    constructor(contract, signer) {
-        this.contract = contract;
-        this.signer = signer;
-    }
-
-    // Admin Functions
-    async createGame(entryFeeEth) {
-        const entryFeeWei = ethers.parseEther(entryFeeEth.toString());
-        
-        if (entryFeeWei < BigInt(contractConfig.constants.MIN_ENTRY_FEE)) {
-            throw new Error(`Minimum entry fee is ${contractConfig.gameRules.minEntryFeeETH} MON`);
-        }
-
-        const tx = await this.contract.createGame(entryFeeWei);
-        const receipt = await tx.wait();
-        
-        // Extract game ID from event
-        const event = receipt.logs.find(log => 
-            log.fragment && log.fragment.name === 'GameCreated'
-        );
-        const gameId = event ? event.args[0] : null;
-        
-        return { 
-            txHash: receipt.hash, 
-            gameId: gameId ? gameId.toString() : null,
-            blockNumber: receipt.blockNumber 
-        };
-    }
-
-    async joinGame(gameId, nickname = "", isThief = true) {
-        const gameState = await this.getGameState(gameId);
-        const entryFee = gameState.entryFee;
-        
-        const tx = await this.contract.joinGame(gameId, nickname, isThief, {
-            value: entryFee
-        });
-        
-        return await tx.wait();
-    }
-
-    async startGame(gameId) {
-        const tx = await this.contract.startGame(gameId);
-        return await tx.wait();
-    }
-
-    // Gameplay Functions
-    async commitMove(gameId, pathChoice) {
-        if (pathChoice < 0 || pathChoice > 2) {
-            throw new Error('Invalid path choice. Must be 0 (A), 1 (B), or 2 (C)');
-        }
-        
-        const tx = await this.contract.commitMove(gameId, pathChoice);
-        return await tx.wait();
-    }
-
-    async voteBlock(gameId, pathChoice) {
-        if (pathChoice < 0 || pathChoice > 2) {
-            throw new Error('Invalid path choice. Must be 0 (A), 1 (B), or 2 (C)');
-        }
-        
-        const tx = await this.contract.voteBlock(gameId, pathChoice);
-        return await tx.wait();
-    }
-
-    async processStage(gameId) {
-        const tx = await this.contract.processStage(gameId);
-        return await tx.wait();
-    }
-
-    async finalizeGame(gameId) {
-        const tx = await this.contract.finalizeGame(gameId);
-        return await tx.wait();
-    }
-
-    // View Functions
-    async getGameState(gameId) {
-        const result = await this.contract.getGameState(gameId);
-        return {
-            creator: result[0],
-            entryFee: result[1],
-            started: result[2],
-            finalized: result[3],
-            currentStage: Number(result[4]),
-            thievesCount: Number(result[5]),
-            policeCount: Number(result[6]),
-            aliveThieves: Number(result[7]),
-            totalPlayers: Number(result[8])
-        };
-    }
-
-    async getPlayers(gameId) {
-        const players = await this.contract.getPlayers(gameId);
-        return players.map(player => ({
-            address: player.addr,
-            nickname: player.nickname,
-            isThief: player.isThief,
-            eliminated: player.eliminated,
-            moves: player.moves.map(move => Number(move))
-        }));
-    }
-
-    async getVaultBalance(gameId) {
-        const balance = await this.contract.getVaultBalance(gameId);
-        return ethers.formatEther(balance);
-    }
-
-    async isWinner(gameId, playerAddress) {
-        return await this.contract.isWinner(gameId, playerAddress);
-    }
-
-    async getCurrentGameId() {
-        const gameId = await this.contract.getCurrentGameId();
-        return Number(gameId);
-    }
-
-    // Event Listeners
-    setupEventListeners() {
-        // Listen for game events
-        this.contract.on('GameCreated', (gameId, creator, entryFee) => {
-            console.log('Game Created:', {
-                gameId: gameId.toString(),
-                creator,
-                entryFee: ethers.formatEther(entryFee)
-            });
-        });
-
-        this.contract.on('PlayerJoined', (gameId, player, nickname, isThief) => {
-            console.log('Player Joined:', {
-                gameId: gameId.toString(),
-                player,
-                nickname,
-                team: isThief ? 'Thieves' : 'Police'
-            });
-        });
-
-        this.contract.on('GameStarted', (gameId, startBlock) => {
-            console.log('Game Started:', {
-                gameId: gameId.toString(),
-                startBlock: startBlock.toString()
-            });
-        });
-
-        this.contract.on('MoveCommitted', (gameId, player, stage) => {
-            console.log('Move Committed:', {
-                gameId: gameId.toString(),
-                player,
-                stage: stage.toString()
-            });
-        });
-
-        this.contract.on('VoteCast', (gameId, voter, stage, blockedPath) => {
-            console.log('Vote Cast:', {
-                gameId: gameId.toString(),
-                voter,
-                stage: stage.toString(),
-                blockedPath: ['A', 'B', 'C'][blockedPath]
-            });
-        });
-
-        this.contract.on('StageCompleted', (gameId, stage, blockedPath, eliminatedPlayers) => {
-            console.log('Stage Completed:', {
-                gameId: gameId.toString(),
-                stage: stage.toString(),
-                blockedPath: ['A', 'B', 'C'][blockedPath],
-                eliminatedCount: eliminatedPlayers.length
-            });
-        });
-
-        this.contract.on('GameFinalized', (gameId, winners, prizePerWinner) => {
-            console.log('Game Finalized:', {
-                gameId: gameId.toString(),
-                winnerCount: winners.length,
-                prizePerWinner: ethers.formatEther(prizePerWinner)
-            });
-        });
-    }
-
-    // Utility functions
-    pathToString(pathIndex) {
-        return ['A', 'B', 'C'][pathIndex] || 'Unknown';
-    }
-
-    formatMON(weiAmount) {
-        return ethers.formatEther(weiAmount);
-    }
-
-    parseMON(ethAmount) {
-        return ethers.parseEther(ethAmount.toString());
-    }
-}
-
-/**
- * Usage Examples
- */
-export async function exampleUsage() {
+  // Get minimum entry fee
+  async getMinEntryFee() {
     try {
-        // Connect wallet
-        const { contract: connectedContract, signer } = await connectWallet();
-        const game = new MonkaBreakGame(connectedContract, signer);
-        
-        // Setup event listeners
-        game.setupEventListeners();
-
-        // Create a new game
-        console.log('Creating new game...');
-        const { gameId } = await game.createGame(3); // 3 MON entry fee
-        console.log(`Game created with ID: ${gameId}`);
-
-        // Join game as thief
-        console.log('Joining game as thief...');
-        await game.joinGame(gameId, "Alice", true);
-
-        // Check game state
-        const gameState = await game.getGameState(gameId);
-        console.log('Game State:', gameState);
-
-        // Get players
-        const players = await game.getPlayers(gameId);
-        console.log('Players:', players);
-
-        return { game, gameId };
+      const minFee = await this.contract.methods.MIN_ENTRY_FEE().call();
+      return {
+        wei: minFee,
+        ether: this.web3.utils.fromWei(minFee, 'ether'),
+        mon: this.web3.utils.fromWei(minFee, 'ether') + ' MON'
+      };
     } catch (error) {
-        console.error('Error in example usage:', error);
-        throw error;
+      console.error('Error getting min entry fee:', error);
+      throw error;
     }
+  }
+
+  // Create a new game
+  async createGame(gameId) {
+    try {
+      console.log(`Creating game with ID: ${gameId}`);
+      
+      const txData = this.contract.methods.createGame(gameId);
+      const gas = await txData.estimateGas({ from: this.account.address });
+      
+      const tx = await txData.send({
+        from: this.account.address,
+        gas: Math.floor(gas * 1.2), // Add 20% buffer
+        gasPrice: await this.web3.eth.getGasPrice()
+      });
+      
+      console.log('Game created successfully!');
+      console.log('Transaction hash:', tx.transactionHash);
+      return tx;
+    } catch (error) {
+      console.error('Error creating game:', error);
+      throw error;
+    }
+  }
+
+  // Start a game with entry fee
+  async startGame(gameId, entryFeeEther = '1') {
+    try {
+      console.log(`Starting game ${gameId} with ${entryFeeEther} MON entry fee`);
+      
+      const entryFeeWei = this.web3.utils.toWei(entryFeeEther, 'ether');
+      const txData = this.contract.methods.startGame(gameId);
+      const gas = await txData.estimateGas({ 
+        from: this.account.address, 
+        value: entryFeeWei 
+      });
+      
+      const tx = await txData.send({
+        from: this.account.address,
+        value: entryFeeWei,
+        gas: Math.floor(gas * 1.2),
+        gasPrice: await this.web3.eth.getGasPrice()
+      });
+      
+      console.log('Game started successfully!');
+      console.log('Transaction hash:', tx.transactionHash);
+      return tx;
+    } catch (error) {
+      console.error('Error starting game:', error);
+      throw error;
+    }
+  }
+
+  // Finalize game with winners
+  async finalizeGame(gameId, winnerAddresses) {
+    try {
+      console.log(`Finalizing game ${gameId} with ${winnerAddresses.length} winners`);
+      
+      const txData = this.contract.methods.finalizeGame(gameId, winnerAddresses);
+      const gas = await txData.estimateGas({ from: this.account.address });
+      
+      const tx = await txData.send({
+        from: this.account.address,
+        gas: Math.floor(gas * 1.2),
+        gasPrice: await this.web3.eth.getGasPrice()
+      });
+      
+      console.log('Game finalized successfully!');
+      console.log('Transaction hash:', tx.transactionHash);
+      return tx;
+    } catch (error) {
+      console.error('Error finalizing game:', error);
+      throw error;
+    }
+  }
+
+  // Get game information
+  async getGame(gameId) {
+    try {
+      const gameData = await this.contract.methods.getGame(gameId).call();
+      
+      return {
+        creator: gameData.creator,
+        vault: {
+          wei: gameData.vault,
+          ether: this.web3.utils.fromWei(gameData.vault, 'ether'),
+          mon: this.web3.utils.fromWei(gameData.vault, 'ether') + ' MON'
+        },
+        entryFee: {
+          wei: gameData.entryFee,
+          ether: this.web3.utils.fromWei(gameData.entryFee, 'ether'),
+          mon: this.web3.utils.fromWei(gameData.entryFee, 'ether') + ' MON'
+        },
+        startBlock: gameData.startBlock,
+        started: gameData.started,
+        finalized: gameData.finalized
+      };
+    } catch (error) {
+      console.error('Error getting game data:', error);
+      throw error;
+    }
+  }
+
+  // Listen to contract events
+  setupEventListeners() {
+    // Game Created Event
+    this.contract.events.GameCreated()
+      .on('data', (event) => {
+        console.log('Game Created:', {
+          gameId: event.returnValues.gameId,
+          creator: event.returnValues.creator,
+          blockNumber: event.blockNumber,
+          transactionHash: event.transactionHash
+        });
+      })
+      .on('error', console.error);
+
+    // Game Started Event
+    this.contract.events.GameStarted()
+      .on('data', (event) => {
+        console.log('Game Started:', {
+          gameId: event.returnValues.gameId,
+          vault: this.web3.utils.fromWei(event.returnValues.vault, 'ether') + ' MON',
+          blockNumber: event.returnValues.blockNumber,
+          transactionHash: event.transactionHash
+        });
+      })
+      .on('error', console.error);
+
+    // Game Finalized Event
+    this.contract.events.GameFinalized()
+      .on('data', (event) => {
+        console.log('Game Finalized:', {
+          gameId: event.returnValues.gameId,
+          winners: event.returnValues.winners,
+          blockNumber: event.blockNumber,
+          transactionHash: event.transactionHash
+        });
+      })
+      .on('error', console.error);
+  }
+
+  // Check account balance
+  async getBalance() {
+    const balanceWei = await this.web3.eth.getBalance(this.account.address);
+    return {
+      wei: balanceWei,
+      ether: this.web3.utils.fromWei(balanceWei, 'ether'),
+      mon: this.web3.utils.fromWei(balanceWei, 'ether') + ' MON'
+    };
+  }
+}
+
+// Example usage
+async function exampleUsage() {
+  // Initialize with your private key (use environment variable in production)
+  const PRIVATE_KEY = process.env.PRIVATE_KEY || '0x0000000000000000000000000000000000000000000000000000000000000001';
+  
+  try {
+    const monkaBreak = new MonkaBreakContract(PRIVATE_KEY);
+    
+    // Setup event listeners
+    monkaBreak.setupEventListeners();
+    
+    // Check balance
+    const balance = await monkaBreak.getBalance();
+    console.log('Account balance:', balance.mon);
+    
+    // Get minimum entry fee
+    const minFee = await monkaBreak.getMinEntryFee();
+    console.log('Minimum entry fee:', minFee.mon);
+    
+    // Example game flow
+    const gameId = Date.now(); // Use timestamp as game ID
+    
+    // 1. Create game
+    await monkaBreak.createGame(gameId);
+    
+    // 2. Start game with entry fee
+    await monkaBreak.startGame(gameId, '2'); // 2 MON entry fee
+    
+    // 3. Get game info
+    const gameInfo = await monkaBreak.getGame(gameId);
+    console.log('Game info:', gameInfo);
+    
+    // 4. Finalize game (example with winner addresses)
+    const winners = ['0x742d35Cc8Cc5C84b14c3c3Cc2A3BC3d2BC10D48C']; // Example winner
+    await monkaBreak.finalizeGame(gameId, winners);
+    
+    console.log('Example completed successfully!');
+    
+  } catch (error) {
+    console.error('Example failed:', error);
+  }
 }
 
 // Export for use in other modules
-export {
-    MonkaBreakGame,
-    connectWallet,
-    CONTRACT_ADDRESS,
-    CONTRACT_ABI,
-    contractConfig
+module.exports = {
+  MonkaBreakContract,
+  CONTRACT_ADDRESS,
+  CONTRACT_ABI,
+  MONAD_TESTNET_RPC,
+  CHAIN_ID
 };
 
-/**
- * React Hook Example (if using React)
- */
-export function useMonkaBreak() {
-    const [game, setGame] = useState(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-
-    const initialize = async () => {
-        try {
-            setLoading(true);
-            setError(null);
-            const { contract, signer } = await connectWallet();
-            const gameInstance = new MonkaBreakGame(contract, signer);
-            gameInstance.setupEventListeners();
-            setGame(gameInstance);
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    return { game, loading, error, initialize };
+// Run example if this file is executed directly
+if (require.main === module) {
+  exampleUsage();
 } 
