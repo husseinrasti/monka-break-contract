@@ -61,3 +61,5 @@ flamegraph.svg
 # Foundry specific
 lib/
 broadcast/ 
+
+.cursor/*
