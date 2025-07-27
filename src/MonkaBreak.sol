@@ -7,23 +7,26 @@ pragma solidity ^0.8.19;
  * @dev Implements 4-stage gameplay with path selection, voting, and elimination mechanics
  */
 contract MonkaBreak {
-    /// @notice Minimum entry fee required to create a game (2 MON)
-    uint256 public constant MIN_ENTRY_FEE = 2 ether;
+    /// @notice Contract owner who can modify game parameters
+    address public owner;
+    
+    /// @notice Minimum entry fee required to create a game (initially 2 MON)
+    uint256 public minEntryFee = 2 ether;
     
     /// @notice Minimum number of thieves required to start a game
-    uint256 public constant MIN_THIEVES = 3;
+    uint256 public minThieves = 3;
     
     /// @notice Minimum number of police required to start a game
-    uint256 public constant MIN_POLICE = 3;
+    uint256 public minPolice = 3;
     
     /// @notice Maximum total players allowed in a game
-    uint256 public constant MAX_PLAYERS = 10;
+    uint256 public maxPlayers = 10;
     
     /// @notice Total number of game stages
-    uint256 public constant TOTAL_STAGES = 4;
+    uint256 public totalStages = 4;
     
     /// @notice Number of paths available for selection (A=0, B=1, C=2)
-    uint256 public constant NUM_PATHS = 3;
+    uint256 public numPaths = 3;
 
     /// @notice Counter for generating unique game IDs
     uint256 private _gameIdCounter;
@@ -34,7 +37,7 @@ contract MonkaBreak {
         string nickname;
         bool isThief;
         bool eliminated;
-        uint8[TOTAL_STAGES] moves; // Path choices for each stage
+        uint8[4] moves; // Fixed size array for moves (will be dynamically validated against totalStages)
         bool hasCommittedMove; // Track if player has committed move for current stage
     }
 
@@ -64,6 +67,13 @@ contract MonkaBreak {
     /// @notice Default police nicknames
     string[] private _policeNicknames = ["Keone", "Bill", "Mike", "James"];
 
+    /**
+     * @notice Constructor sets the deployer as the contract owner
+     */
+    constructor() {
+        owner = msg.sender;
+    }
+
     // Events
     event GameCreated(uint256 indexed gameId, address indexed creator, uint256 entryFee);
     event PlayerJoined(uint256 indexed gameId, address indexed player, string nickname, bool isThief);
@@ -73,6 +83,14 @@ contract MonkaBreak {
     event StageCompleted(uint256 indexed gameId, uint256 stage, uint8 blockedPath, address[] eliminatedPlayers);
     event GameFinalized(uint256 indexed gameId, address[] winners, uint256 prizePerWinner);
     event PrizeClaimed(uint256 indexed gameId, address indexed winner, uint256 amount);
+    event GameParametersUpdated(uint256 minEntryFee, uint256 minThieves, uint256 minPolice, uint256 maxPlayers, uint256 totalStages, uint256 numPaths);
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event MinEntryFeeUpdated(uint256 oldValue, uint256 newValue);
+    event MinThievesUpdated(uint256 oldValue, uint256 newValue);
+    event MinPoliceUpdated(uint256 oldValue, uint256 newValue);
+    event MaxPlayersUpdated(uint256 oldValue, uint256 newValue);
+    event TotalStagesUpdated(uint256 oldValue, uint256 newValue);
+    event NumPathsUpdated(uint256 oldValue, uint256 newValue);
 
     // Custom errors
     error InsufficientEntryFee();
@@ -97,6 +115,14 @@ contract MonkaBreak {
     error NoWinnings();
     error TransferFailed();
     error InvalidStage();
+    error OnlyOwnerCanCall();
+    error InvalidMinEntryFee();
+    error InvalidMinThieves();
+    error InvalidMinPolice();
+    error InvalidMaxPlayers();
+    error InvalidTotalStages();
+    error InvalidNumPaths();
+    error NewOwnerIsZeroAddress();
 
     modifier gameExists(uint256 gameId) {
         if (_games[gameId].creator == address(0)) revert GameNotFound();
@@ -123,8 +149,13 @@ contract MonkaBreak {
         _;
     }
 
+    modifier onlyOwner() {
+        if (msg.sender != owner) revert OnlyOwnerCanCall();
+        _;
+    }
+
     modifier validPath(uint8 path) {
-        if (path >= NUM_PATHS) revert InvalidPath();
+        if (path >= numPaths) revert InvalidPath();
         _;
     }
 
@@ -134,7 +165,7 @@ contract MonkaBreak {
      * @return gameId The ID of the created game
      */
     function createGame(uint256 entryFee) external returns (uint256 gameId) {
-        if (entryFee < MIN_ENTRY_FEE) revert InsufficientEntryFee();
+        if (entryFee < minEntryFee) revert InsufficientEntryFee();
         
         gameId = ++_gameIdCounter;
         GameRoom storage game = _games[gameId];
@@ -161,7 +192,7 @@ contract MonkaBreak {
         GameRoom storage game = _games[gameId];
         
         if (msg.value != game.entryFee) revert InsufficientEntryFee();
-        if (game.players.length >= MAX_PLAYERS) revert GameIsFull();
+        if (game.players.length >= maxPlayers) revert GameIsFull();
         
         // Check if player already joined
         for (uint256 i = 0; i < game.players.length; i++) {
@@ -169,8 +200,8 @@ contract MonkaBreak {
         }
         
         // Check team balance
-        if (isThief && game.thievesCount >= MAX_PLAYERS - MIN_POLICE) revert InvalidTeamSelection();
-        if (!isThief && game.policeCount >= MAX_PLAYERS - MIN_THIEVES) revert InvalidTeamSelection();
+        if (isThief && game.thievesCount >= maxPlayers - minPolice) revert InvalidTeamSelection();
+        if (!isThief && game.policeCount >= maxPlayers - minThieves) revert InvalidTeamSelection();
         
         // Set nickname
         string memory finalNickname = nickname;
@@ -217,7 +248,7 @@ contract MonkaBreak {
     {
         GameRoom storage game = _games[gameId];
         
-        if (game.thievesCount < MIN_THIEVES || game.policeCount < MIN_POLICE) {
+        if (game.thievesCount < minThieves || game.policeCount < minPolice) {
             revert InsufficientPlayers();
         }
         
@@ -242,7 +273,7 @@ contract MonkaBreak {
     {
         GameRoom storage game = _games[gameId];
         
-        if (game.currentStage >= TOTAL_STAGES) revert InvalidStage();
+        if (game.currentStage >= totalStages) revert InvalidStage();
         
         // Find player and verify they are a thief
         bool playerFound = false;
@@ -281,7 +312,7 @@ contract MonkaBreak {
     {
         GameRoom storage game = _games[gameId];
         
-        if (game.currentStage >= TOTAL_STAGES) revert InvalidStage();
+        if (game.currentStage >= totalStages) revert InvalidStage();
         
         // Find player and verify they are police
         bool playerFound = false;
@@ -305,7 +336,7 @@ contract MonkaBreak {
         uint8 mostVotedPath = 0;
         uint256 maxVotes = game.policeVoteCount[0];
         
-        for (uint8 i = 1; i < NUM_PATHS; i++) {
+        for (uint8 i = 1; i < numPaths; i++) {
             if (game.policeVoteCount[i] > maxVotes) {
                 maxVotes = game.policeVoteCount[i];
                 mostVotedPath = i;
@@ -329,7 +360,7 @@ contract MonkaBreak {
     {
         GameRoom storage game = _games[gameId];
         
-        if (game.currentStage >= TOTAL_STAGES) revert InvalidStage();
+        if (game.currentStage >= totalStages) revert InvalidStage();
         
         uint8 blockedPath = game.policeVotes[game.currentStage];
         address[] memory eliminatedPlayers = new address[](game.aliveThieves);
@@ -363,14 +394,14 @@ contract MonkaBreak {
         }
         
         // Reset vote counts for next stage
-        for (uint8 i = 0; i < NUM_PATHS; i++) {
+        for (uint8 i = 0; i < numPaths; i++) {
             game.policeVoteCount[i] = 0;
         }
         
         game.currentStage++;
         
         // Check if game should end
-        if (game.aliveThieves == 0 || game.currentStage >= TOTAL_STAGES) {
+        if (game.aliveThieves == 0 || game.currentStage >= totalStages) {
             _determineWinners(gameId);
         }
     }
@@ -388,7 +419,7 @@ contract MonkaBreak {
     {
         GameRoom storage game = _games[gameId];
         
-        if (game.currentStage < TOTAL_STAGES && game.aliveThieves > 0) {
+        if (game.currentStage < totalStages && game.aliveThieves > 0) {
             revert GameNotReadyToFinalize();
         }
         
@@ -448,15 +479,15 @@ contract MonkaBreak {
                     game.winners[game.players[i].addr] = true;
                 }
             }
-        } else if (game.currentStage >= TOTAL_STAGES) {
+        } else if (game.currentStage >= totalStages) {
             // Stage 4 completed - determine winning path and thieves
-            uint8 winningPath = uint8(uint256(blockhash(game.startBlock)) % NUM_PATHS);
-            uint8 blockedPath = game.policeVotes[TOTAL_STAGES - 1];
+            uint8 winningPath = uint8(uint256(blockhash(game.startBlock)) % numPaths);
+            uint8 blockedPath = game.policeVotes[totalStages - 1];
             
             for (uint256 i = 0; i < game.players.length; i++) {
                 Player storage player = game.players[i];
                 if (player.isThief && !player.eliminated) {
-                    uint8 finalMove = player.moves[TOTAL_STAGES - 1];
+                    uint8 finalMove = player.moves[totalStages - 1];
                     if (finalMove == winningPath && finalMove != blockedPath) {
                         game.winners[player.addr] = true;
                     }
@@ -574,5 +605,116 @@ contract MonkaBreak {
      */
     function getCurrentGameId() external view returns (uint256) {
         return _gameIdCounter;
+    }
+
+    /**
+     * @notice Transfers ownership of the contract to a new account
+     * @param newOwner The address of the new owner
+     */
+    function transferOwnership(address newOwner) external onlyOwner {
+        if (newOwner == address(0)) revert NewOwnerIsZeroAddress();
+        address oldOwner = owner;
+        owner = newOwner;
+        emit OwnershipTransferred(oldOwner, newOwner);
+    }
+
+    /**
+     * @notice Updates the minimum entry fee
+     * @param _minEntryFee New minimum entry fee (must be > 0)
+     */
+    function setMinEntryFee(uint256 _minEntryFee) external onlyOwner {
+        if (_minEntryFee == 0) revert InvalidMinEntryFee();
+        uint256 oldValue = minEntryFee;
+        minEntryFee = _minEntryFee;
+        emit MinEntryFeeUpdated(oldValue, _minEntryFee);
+    }
+
+    /**
+     * @notice Updates the minimum number of thieves
+     * @param _minThieves New minimum number of thieves (must be > 0)
+     */
+    function setMinThieves(uint256 _minThieves) external onlyOwner {
+        if (_minThieves == 0) revert InvalidMinThieves();
+        uint256 oldValue = minThieves;
+        minThieves = _minThieves;
+        emit MinThievesUpdated(oldValue, _minThieves);
+    }
+
+    /**
+     * @notice Updates the minimum number of police
+     * @param _minPolice New minimum number of police (must be > 0)
+     */
+    function setMinPolice(uint256 _minPolice) external onlyOwner {
+        if (_minPolice == 0) revert InvalidMinPolice();
+        uint256 oldValue = minPolice;
+        minPolice = _minPolice;
+        emit MinPoliceUpdated(oldValue, _minPolice);
+    }
+
+    /**
+     * @notice Updates the maximum number of players
+     * @param _maxPlayers New maximum number of players (must be >= minThieves + minPolice)
+     */
+    function setMaxPlayers(uint256 _maxPlayers) external onlyOwner {
+        if (_maxPlayers < minThieves + minPolice) revert InvalidMaxPlayers();
+        uint256 oldValue = maxPlayers;
+        maxPlayers = _maxPlayers;
+        emit MaxPlayersUpdated(oldValue, _maxPlayers);
+    }
+
+    /**
+     * @notice Updates the total number of game stages
+     * @param _totalStages New total number of stages (must be > 0 and <= 4 for array bounds)
+     */
+    function setTotalStages(uint256 _totalStages) external onlyOwner {
+        if (_totalStages == 0 || _totalStages > 4) revert InvalidTotalStages();
+        uint256 oldValue = totalStages;
+        totalStages = _totalStages;
+        emit TotalStagesUpdated(oldValue, _totalStages);
+    }
+
+    /**
+     * @notice Updates the number of available paths
+     * @param _numPaths New number of paths (must be > 0)
+     */
+    function setNumPaths(uint256 _numPaths) external onlyOwner {
+        if (_numPaths == 0) revert InvalidNumPaths();
+        uint256 oldValue = numPaths;
+        numPaths = _numPaths;
+        emit NumPathsUpdated(oldValue, _numPaths);
+    }
+
+    /**
+     * @notice Updates all game parameters at once
+     * @param _minEntryFee New minimum entry fee
+     * @param _minThieves New minimum number of thieves
+     * @param _minPolice New minimum number of police
+     * @param _maxPlayers New maximum total players
+     * @param _totalStages New total number of game stages
+     * @param _numPaths New number of paths available
+     */
+    function updateGameParameters(
+        uint256 _minEntryFee,
+        uint256 _minThieves,
+        uint256 _minPolice,
+        uint256 _maxPlayers,
+        uint256 _totalStages,
+        uint256 _numPaths
+    ) external onlyOwner {
+        if (_minEntryFee == 0) revert InvalidMinEntryFee();
+        if (_minThieves == 0) revert InvalidMinThieves();
+        if (_minPolice == 0) revert InvalidMinPolice();
+        if (_maxPlayers < _minThieves + _minPolice) revert InvalidMaxPlayers();
+        if (_totalStages == 0 || _totalStages > 4) revert InvalidTotalStages();
+        if (_numPaths == 0) revert InvalidNumPaths();
+
+        minEntryFee = _minEntryFee;
+        minThieves = _minThieves;
+        minPolice = _minPolice;
+        maxPlayers = _maxPlayers;
+        totalStages = _totalStages;
+        numPaths = _numPaths;
+        
+        emit GameParametersUpdated(_minEntryFee, _minThieves, _minPolice, _maxPlayers, _totalStages, _numPaths);
     }
 } 
