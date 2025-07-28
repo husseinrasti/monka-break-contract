@@ -13,7 +13,8 @@ contract MonkaBreakTest is Test {
     address public player3 = address(0x4);
     address public nonCreator = address(0x5);
     
-    uint256 public constant MIN_ENTRY_FEE = 1 ether;
+    uint256 public constant MIN_ENTRY_FEE = 2 ether;
+    uint256 public constant COOLDOWN_BLOCKS = 256;
     uint256 public constant TEST_GAME_ID = 1;
     uint256 public constant ANOTHER_GAME_ID = 2;
 
@@ -239,7 +240,35 @@ contract MonkaBreakTest is Test {
         // Remainder stays in contract (locked forever)
     }
 
-    function testFinalizeGameNoWinners() public {
+    // ===== COOLDOWN REFUND TESTS =====
+
+    function testFinalizeGameRefundAfterCooldown() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = 5 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        uint256 creatorBalanceBefore = creator.balance;
+        
+        // Advance blocks past cooldown period
+        vm.roll(block.number + COOLDOWN_BLOCKS + 1);
+        
+        address[] memory winners = new address[](0);
+        
+        vm.prank(creator);
+        vm.expectEmit(true, false, false, false);
+        emit MonkaBreak.GameRefunded(TEST_GAME_ID);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        (, uint256 vault,,,, bool finalized) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, 0);
+        assertTrue(finalized);
+        assertEq(creator.balance, creatorBalanceBefore + entryFee);
+    }
+
+    function testFinalizeGameRefundCooldownNotMet() public {
         vm.prank(creator);
         monkaBreak.createGame(TEST_GAME_ID);
         
@@ -249,7 +278,73 @@ contract MonkaBreakTest is Test {
         address[] memory winners = new address[](0);
         
         vm.prank(creator);
-        vm.expectRevert(MonkaBreak.NoWinners.selector);
+        vm.expectRevert(MonkaBreak.CooldownNotMet.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    function testFinalizeGameRefundExactlyAtCooldown() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(creator);
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        // Advance blocks to exactly cooldown period
+        vm.roll(block.number + COOLDOWN_BLOCKS);
+        
+        address[] memory winners = new address[](0);
+        
+        vm.prank(creator);
+        vm.expectRevert(MonkaBreak.CooldownNotMet.selector);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+    }
+
+    function testFinalizeGameRefundOneBlockAfterCooldown() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = 3 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        uint256 creatorBalanceBefore = creator.balance;
+        
+        // Advance blocks to one block after cooldown period
+        vm.roll(block.number + COOLDOWN_BLOCKS + 1);
+        
+        address[] memory winners = new address[](0);
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        (, uint256 vault,,,, bool finalized) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, 0);
+        assertTrue(finalized);
+        assertEq(creator.balance, creatorBalanceBefore + entryFee);
+    }
+
+    function testFinalizeGameRefundTransferFailed() public {
+        // Deploy a contract that rejects ETH transfers
+        RejectEther rejectContract = new RejectEther();
+        
+        // Fund the reject contract
+        vm.deal(address(rejectContract), MIN_ENTRY_FEE);
+        
+        // Create game with the reject contract as creator
+        vm.prank(address(rejectContract));
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        vm.prank(address(rejectContract));
+        monkaBreak.startGame{value: MIN_ENTRY_FEE}(TEST_GAME_ID);
+        
+        // Advance blocks past cooldown period
+        vm.roll(block.number + COOLDOWN_BLOCKS + 1);
+        
+        address[] memory winners = new address[](0);
+        
+        // Try to finalize with the reject contract as creator
+        vm.prank(address(rejectContract));
+        vm.expectRevert(MonkaBreak.TransferFailed.selector);
         monkaBreak.finalizeGame(TEST_GAME_ID, winners);
     }
 
@@ -422,6 +517,34 @@ contract MonkaBreakTest is Test {
         assertEq(player2.balance, player2BalanceBefore + 5 ether);
     }
 
+    function testCompleteGameFlowWithRefund() public {
+        // Create game
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        // Start game
+        uint256 entryFee = 5 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        uint256 creatorBalanceBefore = creator.balance;
+        
+        // Advance blocks past cooldown period
+        vm.roll(block.number + COOLDOWN_BLOCKS + 1);
+        
+        // Finalize game with no winners (refund)
+        address[] memory winners = new address[](0);
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        // Verify final state
+        (,uint256 vault,,,, bool finalized) = monkaBreak.getGame(TEST_GAME_ID);
+        assertEq(vault, 0);
+        assertTrue(finalized);
+        assertEq(creator.balance, creatorBalanceBefore + entryFee);
+    }
+
     function testMultipleGamesSimultaneously() public {
         uint256 gameId1 = 1;
         uint256 gameId2 = 2;
@@ -548,6 +671,27 @@ contract MonkaBreakTest is Test {
         
         address[] memory winners = new address[](1);
         winners[0] = player1;
+        
+        vm.prank(creator);
+        monkaBreak.finalizeGame(TEST_GAME_ID, winners);
+        
+        assertEq(address(monkaBreak).balance, 0);
+    }
+
+    function testContractBalanceWithRefund() public {
+        vm.prank(creator);
+        monkaBreak.createGame(TEST_GAME_ID);
+        
+        uint256 entryFee = 5 ether;
+        vm.prank(creator);
+        monkaBreak.startGame{value: entryFee}(TEST_GAME_ID);
+        
+        assertEq(address(monkaBreak).balance, entryFee);
+        
+        // Advance blocks past cooldown period
+        vm.roll(block.number + COOLDOWN_BLOCKS + 1);
+        
+        address[] memory winners = new address[](0);
         
         vm.prank(creator);
         monkaBreak.finalizeGame(TEST_GAME_ID, winners);
